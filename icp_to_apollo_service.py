@@ -167,11 +167,23 @@ class ICPToApolloService:
             logger.exception("Gemini API failure")
             raise APIError("ai_generation_failed", str(e), 500)
 
-        # Parse AI JSON
-        try:
-            ai_data = json.loads(ai_response)
-        except Exception:
-            logger.error("Invalid JSON from Gemini")
+        # Parse AI JSON: `generate_with_retry` may already return a parsed
+        # Python object when `expect_json=True`. Handle dict/list/string/bytes.
+        ai_data = None
+        if isinstance(ai_response, dict):
+            ai_data = ai_response
+        elif isinstance(ai_response, (list, tuple)):
+            # If the model returned a top-level list, wrap in dict under a sensible key
+            ai_data = {"results": ai_response}
+        elif isinstance(ai_response, (str, bytes)):
+            try:
+                text = ai_response.decode("utf-8") if isinstance(ai_response, bytes) else ai_response
+                ai_data = json.loads(text)
+            except Exception:
+                logger.error("Invalid JSON from Gemini")
+                raise APIError("invalid_ai_response", "AI did not return valid JSON", 500)
+        else:
+            logger.error("Invalid JSON from Gemini: unexpected type %s", type(ai_response))
             raise APIError("invalid_ai_response", "AI did not return valid JSON", 500)
 
         # Validate AI output (without location)

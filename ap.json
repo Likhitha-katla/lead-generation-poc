@@ -1,0 +1,91 @@
+{
+   "contacts":[
+      {
+         "linkedin_url":"None",
+         "name":"Anil Krishna",
+         "reason":"As CMO, they are responsible for clinical quality and are likely involved in approving technologies that impact patient safety and medical training, aligning with the Medical Director persona's responsibilities and decision-making process.",
+         "title":"Chief Medical Officer"
+      },
+      {
+         "linkedin_url":"None",
+         "name":"Ajay Kumar",
+         "reason":"This role indicates a high-level executive responsible for medical affairs across potentially multiple facilities, making them a key influencer or decision-maker for advanced training and operational technologies.",
+         "title":"Group Medical Director"
+      },
+      {
+         "linkedin_url":"None",
+         "name":"Ashok Kumar Singh",
+         "reason":"Oversees the operational aspects of the hospital, including resource allocation and efficiency, making them a key stakeholder for solutions that improve productivity and streamline workflows.",
+         "title":"Director - Administration & Operations"
+      }
+   ],
+   "icp_match":{
+      "matched":true,
+      "reasons":[
+         "Jaypee Hospital operates within the 'hospital & health care' industry, aligning perfectly with the ICP's focus on healthcare providers.",
+         "The estimated employee count of 900 falls within the ideal 501-1000 range for company size.",
+         "While the revenue figure of $50,000,000 (assuming USD, as it's provided as a single number) is slightly below the ICP's target of $20M-$55M, it indicates a financially stable organization capable of investing in advanced technologies.",
+         "As a large healthcare institution, it's likely to be undergoing or considering digital transformation initiatives, creating a need for custom software, AR/VR, and AI solutions.",
+         "The scale of operations suggests a need for advanced training and operational efficiency improvements, which Hexanova's services can address.",
+         "The presence of departments and leadership roles within a hospital of this size makes decision-maker relevance high.",
+         "A hospital of this size and scope implies a business maturity level that can support the adoption of innovative technologies."
+      ],
+      "score":85,
+      "source_urls":[
+         "http://www.jaypeehealthcare.com",
+         "http://www.linkedin.com/company/jaypee-hospital"
+      ]
+   },
+   "pain_points":[
+      "Enhancing the realism and effectiveness of surgical and diagnostic training for medical staff to improve patient outcomes.",
+      "Streamlining hospital operational workflows and administrative processes to improve efficiency and reduce costs.",
+      "Leveraging advanced technologies like AI and AR/VR for patient care, diagnostics, or medical education to stay competitive and improve service delivery."
+   ],
+   "raw":{
+      "contacts":[
+         {
+            "name":"Anil Krishna",
+            "reason":"As CMO, they are responsible for clinical quality and are likely involved in approving technologies that impact patient safety and medical training, aligning with the Medical Director persona's responsibilities and decision-making process.",
+            "title":"Chief Medical Officer"
+         },
+         {
+            "name":"Ajay Kumar",
+            "reason":"This role indicates a high-level executive responsible for medical affairs across potentially multiple facilities, making them a key influencer or decision-maker for advanced training and operational technologies.",
+            "title":"Group Medical Director"
+         },
+         {
+            "name":"Ashok Kumar Singh",
+            "reason":"Oversees the operational aspects of the hospital, including resource allocation and efficiency, making them a key stakeholder for solutions that improve productivity and streamline workflows.",
+            "title":"Director - Administration & Operations"
+         }
+      ],
+      "icp_match":{
+         "matched":true,
+         "reasons":[
+            "Jaypee Hospital operates within the 'hospital & health care' industry, aligning perfectly with the ICP's focus on healthcare providers.",
+            "The estimated employee count of 900 falls within the ideal 501-1000 range for company size.",
+            "While the revenue figure of $50,000,000 (assuming USD, as it's provided as a single number) is slightly below the ICP's target of $20M-$55M, it indicates a financially stable organization capable of investing in advanced technologies.",
+            "As a large healthcare institution, it's likely to be undergoing or considering digital transformation initiatives, creating a need for custom software, AR/VR, and AI solutions.",
+            "The scale of operations suggests a need for advanced training and operational efficiency improvements, which Hexanova's services can address.",
+            "The presence of departments and leadership roles within a hospital of this size makes decision-maker relevance high.",
+            "A hospital of this size and scope implies a business maturity level that can support the adoption of innovative technologies."
+         ],
+         "score":85,
+         "source_urls":[
+            "http://www.jaypeehealthcare.com",
+            "http://www.linkedin.com/company/jaypee-hospital"
+         ]
+      },
+      "pain_points":[
+         "Enhancing the realism and effectiveness of surgical and diagnostic training for medical staff to improve patient outcomes.",
+         "Streamlining hospital operational workflows and administrative processes to improve efficiency and reduce costs.",
+         "Leveraging advanced technologies like AI and AR/VR for patient care, diagnostics, or medical education to stay competitive and improve service delivery."
+      ],
+      "source_urls":[
+         
+      ]
+   },
+   "source_urls":[
+      
+   ]
+}

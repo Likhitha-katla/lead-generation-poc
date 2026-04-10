@@ -5,6 +5,7 @@ import os
 from typing import Any, Dict, List
 
 import pandas as pd
+from pathlib import Path
 import streamlit as st
 
 from icp_to_apollo_service import ICPToApolloService
@@ -291,10 +292,61 @@ def _render_result_page():
     summary_col_3.metric("Rejected", result.get("rejected", 0))
     summary_col_4.metric("Deleted", result.get("deleted", 0))
 
-    df = pd.DataFrame(result.get("leads", [])[:50])
+    # Build a presentation-friendly table hiding raw AI output
+    display_rows = []
+    for lead in result.get("leads", [])[:50]:
+        verification = lead.get("verification") or {}
+        icp = verification.get("icp_match") or {}
 
-    st.subheader("Lead List")
+        # Friendly values
+        matched = "Yes" if icp.get("matched") else "No"
+        score = icp.get("score") if isinstance(icp.get("score"), (int, float)) else "-"
+        reasons = icp.get("reasons") or []
+        top_reasons = ", ".join(reasons[:3]) if reasons else "-"
+
+        contacts = verification.get("contacts") or []
+        contacts_str = "; ".join(
+            f"{c.get('name','').strip()} ({c.get('title','').strip()}) - {c.get('linkedin_url','').strip()}" for c in contacts if c
+        ) or "-"
+
+        pain_points = verification.get("pain_points") or []
+        pain_str = "; ".join(pain_points) or "-"
+
+        source_urls = verification.get("source_urls") or []
+        sources_str = ", ".join(source_urls) or "-"
+
+        display_rows.append({
+            "Name": lead.get("name") or lead.get("company") or "-",
+            "Website": lead.get("website_url") or lead.get("validated_domain") or "-",
+            "ICP Match": matched,
+            "Score": score,
+            "Top Reasons": top_reasons,
+            "Contacts": contacts_str,
+            "Top Pain Points": pain_str,
+            "Source URLs": sources_str,
+        })
+
+    df = pd.DataFrame(display_rows)
+
+    st.subheader("Lead List (human-friendly)")
     st.dataframe(df, use_container_width=True)
+
+    # Save human-friendly JSON to workspace and provide download
+    try:
+        json_str = json.dumps(display_rows, indent=2)
+        save_path = Path("verified_leads_human.json")
+        with save_path.open("w", encoding="utf-8") as wf:
+            wf.write(json_str)
+    except Exception:
+        save_path = None
+
+    col_download, _ = st.columns([1, 3])
+    with col_download:
+        if save_path:
+            st.download_button("Download JSON", data=json_str, file_name=save_path.name, mime="application/json")
+            st.success(f"Saved {save_path}")
+        else:
+            st.warning("Could not save JSON to disk; you can still download via the button if available.")
 
 
 _init_state()

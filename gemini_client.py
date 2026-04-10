@@ -1,10 +1,13 @@
 # Gemini API client with retry logic and rate limiting
+# gemini_client.py
 import re
 import time
 import asyncio
 import logging
 import threading
 import os
+import random
+import json
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -17,9 +20,6 @@ except Exception:
 if load_dotenv is not None:
     load_dotenv()
 
-# Optional Google GenAI SDK. We guard import so the project can still
-# run in degraded mode (generate_with_retry will raise a clear error
-# if the SDK isn't available or not configured).
 try:
     from google import genai  # type: ignore
     from google.genai import types  # type: ignore
@@ -40,6 +40,18 @@ def _get_gemini_api_key() -> str:
 
 def _get_gemini_model() -> str:
     return _get_env("GEMINI_MODEL", "gemini-2.5-flash-lite").strip() or "gemini-2.5-flash"
+
+
+def _get_gemini_model_fallbacks() -> list[str]:
+    raw = _get_env("GEMINI_MODEL_FALLBACKS", "gemini-2.0-flash,gemini-2.5-flash-lite").strip()
+    fallbacks = [model.strip() for model in raw.split(",") if model.strip()]
+    # Keep the primary model first, then any configured fallbacks.
+    primary = _get_gemini_model()
+    models = [primary]
+    for model in fallbacks:
+        if model not in models:
+            models.append(model)
+    return models
 
 
 def _get_max_retries() -> int:
@@ -204,88 +216,153 @@ async def generate_with_retry(
     system_instruction: Optional[str] = None,
     api_key: Optional[str] = None,
 ) -> str:
-
     client = get_gemini_client(api_key=api_key)
-    
+
     config_kwargs = {}
-    
     if system_instruction:
         config_kwargs["system_instruction"] = system_instruction
-    
     if expect_json:
         config_kwargs["response_mime_type"] = "application/json"
-    
     if use_google_search:
         config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
-    
+
     config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
-    
-    last_error = None
-    
+
+    # Some Gemini tool combinations (e.g., using `tools`) do not support
+    # forcing a response MIME type like `application/json`. If both are
+    # present, prefer the tools and drop the MIME type to avoid INVALID_ARGUMENT.
+    if config is not None and hasattr(config, 'tools') and getattr(config, 'tools') and getattr(config, 'response_mime_type', None):
+        logger.warning(
+            "Dropping response_mime_type because tools are enabled (unsupported combination)",
+            extra={"response_mime_type": getattr(config, 'response_mime_type'), "tools": True},
+        )
+        try:
+            # Rebuild config without response_mime_type
+            cfg_dict = {k: v for k, v in config_kwargs.items() if k != 'response_mime_type'}
+            config = types.GenerateContentConfig(**cfg_dict) if cfg_dict else None
+        except Exception:
+            # If rebuilding fails, fall back to original config (let server return the error)
+            pass
+
     max_retries = _get_max_retries()
     timeout = _get_timeout()
     retry_delay = _get_retry_delay()
-    model = _get_gemini_model()
+    model_candidates = _get_gemini_model_fallbacks()
+    last_error = None
 
-    for attempt in range(max_retries):
-        try:
-            await rate_limiter.wait()
-            
-            logger.debug("Gemini API call", extra={
-                "attempt": attempt + 1,
-                "max_retries": max_retries,
-                "expect_json": expect_json,
-                "use_google_search": use_google_search
-            })
-            
-            response_text = await asyncio.wait_for(
-                asyncio.to_thread(
-                    _sync_generate,
-                    client,
-                    model,
-                    prompt,
-                    config
-                ),
-                timeout=timeout
-            )
-            
-            logger.debug("Gemini API call successful")
-            return response_text
-            
-        except asyncio.TimeoutError:
-            last_error = f"Gemini API timeout after {timeout}s"
-            logger.warning("Gemini timeout", extra={"attempt": attempt + 1, "timeout": timeout})
-            
-        except Exception as e:
-            error_str = str(e)
-            last_error = error_str
+    for model_index, model in enumerate(model_candidates):
+        logger.info("Using Gemini model", extra={"model": model, "model_index": model_index})
 
-            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                # Log quota/daily limit warnings but do NOT hard-stop; just retry
-                if "daily" in error_str.lower() or "quota" in error_str.lower():
-                    logger.warning("Gemini quota warning (retrying)", extra={"attempt": attempt + 1, "error": error_str})
-                
-                retry_match = re.search(r"retry in (\d+(\.\d+)?)s", error_str)
-                if not retry_match:
-                    retry_match = re.search(r"retryDelay': '(\d+(\.\d+)?)s'", error_str)
-                
-                if retry_match:
-                    wait_time = float(retry_match.group(1)) + 1.0
+        for attempt in range(max_retries):
+            try:
+                await rate_limiter.wait()
+
+                logger.debug(
+                    "Gemini API call",
+                    extra={
+                        "attempt": attempt + 1,
+                        "max_retries": max_retries,
+                        "model": model,
+                        "expect_json": expect_json,
+                        "use_google_search": use_google_search,
+                    },
+                )
+
+                response_text = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        _sync_generate,
+                        client,
+                        model,
+                        prompt,
+                        config,
+                    ),
+                    timeout=timeout,
+                )
+
+                logger.debug("Gemini API call successful", extra={"model": model})
+
+                # If caller requested JSON and we didn't disable MIME type via tools,
+                # attempt to parse and return a Python object (dict/list).
+                if expect_json:
+                    try:
+                        parsed = json.loads(response_text) if isinstance(response_text, str) else response_text
+                        return parsed
+                    except Exception:
+                        # Fall through to return raw text so callers can attempt extraction
+                        logger.debug("Failed to parse response as JSON; returning raw text", extra={"model": model})
+
+                return response_text
+
+            except asyncio.TimeoutError:
+                last_error = f"Gemini API timeout after {timeout}s"
+                logger.warning("Gemini timeout", extra={"attempt": attempt + 1, "timeout": timeout, "model": model})
+
+            except Exception as e:
+                error_str = str(e)
+                last_error = error_str
+
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                    if "daily" in error_str.lower() or "quota" in error_str.lower():
+                        logger.warning(
+                            "Gemini quota warning (retrying)",
+                            extra={"attempt": attempt + 1, "model": model, "error": error_str},
+                        )
+
+                    retry_match = re.search(r"retry in (\d+(\.\d+)?)s", error_str)
+                    if not retry_match:
+                        retry_match = re.search(r"retryDelay': '(\d+(\.\d+)?)s'", error_str)
+
+                    if retry_match:
+                        wait_time = float(retry_match.group(1)) + 1.0
+                        logger.warning(
+                            "Rate limit hit, waiting %ss before retry",
+                            wait_time,
+                            extra={"attempt": attempt + 1, "model": model},
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue
+
+                # Look for common Retry-After patterns (seconds)
+                retry_after_match = re.search(r"Retry-After[:=]\s*(\d+)", error_str, re.IGNORECASE)
+                if retry_after_match:
+                    wait_time = float(retry_after_match.group(1))
                     logger.warning(
-                        "Rate limit hit, waiting %ss before retry",
+                        "Retry-After header present, waiting %ss before retry",
                         wait_time,
-                        extra={"attempt": attempt + 1}
+                        extra={"attempt": attempt + 1, "model": model},
                     )
                     await asyncio.sleep(wait_time)
                     continue
-            
-            logger.warning("Gemini API failed", extra={"attempt": attempt + 1, "error": error_str})
-        
-        if attempt < max_retries - 1:
-            delay = retry_delay * (2 ** attempt)
-            logger.info("Retrying Gemini", extra={"delay_seconds": delay})
-            await asyncio.sleep(delay)
-    
-    error_msg = f"Gemini API failed after {max_retries} attempts: {last_error}"
+
+                logger.warning(
+                    "Gemini API failed",
+                    extra={"attempt": attempt + 1, "model": model, "error": error_str},
+                )
+
+                # If the model is unavailable (high demand / 503), move to next fallback model immediately.
+                if "503" in error_str or "UNAVAILABLE" in error_str:
+                    logger.warning(
+                        "Gemini model unavailable, switching to next fallback",
+                        extra={"model": model, "attempt": attempt + 1, "error": error_str},
+                    )
+                    break
+
+            if attempt < max_retries - 1:
+                # Exponential backoff with small random jitter
+                base_delay = retry_delay * (2 ** attempt)
+                jitter = random.uniform(0, min(1.0, retry_delay))
+                delay = base_delay + jitter
+                logger.info("Retrying Gemini", extra={"delay_seconds": round(delay, 2), "model": model})
+                await asyncio.sleep(delay)
+
+        # Try next fallback model if available.
+        if model_index < len(model_candidates) - 1:
+            next_model = model_candidates[model_index + 1]
+            logger.warning("Switching Gemini model fallback", extra={"from_model": model, "to_model": next_model})
+            continue
+
+        break
+
+    error_msg = f"Gemini API failed after {max_retries} attempts on all models: {last_error}"
     logger.error(error_msg)
-    raise ExternalServiceError("Gemini", f"Failed after {max_retries} attempts: {last_error}")
+    raise ExternalServiceError("Gemini", error_msg)
