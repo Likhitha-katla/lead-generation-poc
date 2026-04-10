@@ -31,7 +31,7 @@ class ApolloOrganisationLeadService:
 
             # Default pagination
             payload["page"] = 1
-            payload["per_page"] = 100
+            payload["per_page"] = 10
 
             logger.info(f"Incoming payload: {payload}")
 
