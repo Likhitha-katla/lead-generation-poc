@@ -351,7 +351,7 @@ def _render_result_page():
 
         matched = "Yes" if icp.get("matched") else "No"
         score = icp.get("score") if isinstance(icp.get("score"), (int, float)) else "-"
-        reasons = icp.get("reasons") or []
+        reasons = icp.get("brief_explanation") or icp.get("reasons") or []
         top_reasons = _join_nonempty([str(r) for r in reasons[:3]])
 
         contacts_str = _format_contacts(verification.get("contacts") or [])
@@ -360,35 +360,39 @@ def _render_result_page():
 
         row: Dict[str, Any] = {}
 
+        # AI data first so it appears near the company name in the table.
+        row.update({
+            "AI ICP Match": matched,
+            "AI Score": score,
+            "AI Brief Explanation": top_reasons,
+            "AI Contacts": contacts_str,
+            "AI Pain Points": pain_str,
+            "AI Sources": sources_str,
+        })
+
         # Apollo data: include the full lead payload except verification.
         for key, value in lead.items():
             if key == "verification":
                 continue
             _flatten(f"Apollo {key}", value, row)
 
-        # AI data: include the full verification payload in a readable form.
-        _flatten("AI icp_match matched", icp.get("matched"), row)
-        _flatten("AI icp_match score", icp.get("score"), row)
-        _flatten("AI icp_match reasons", icp.get("reasons"), row)
-        _flatten("AI icp_match source_urls", icp.get("source_urls"), row)
-        _flatten("AI contacts", verification.get("contacts") or [], row)
-        _flatten("AI pain_points", verification.get("pain_points") or [], row)
-        _flatten("AI source_urls", verification.get("source_urls") or [], row)
-        _flatten("AI raw", verification.get("raw"), row)
-
-        # Convenience fields at the front of the table.
-        row = {
+        # Company name first, then AI, then the rest of Apollo.
+        ordered_row: Dict[str, Any] = {
             "Apollo Name": lead.get("name") or lead.get("company") or "-",
-            "Apollo Website": lead.get("website_url") or lead.get("validated_domain") or "-",
-            "Apollo LinkedIn": lead.get("linkedin_url") or "-",
-            "AI ICP Match": matched,
-            "AI Score": score,
-            "AI Reasons": top_reasons,
-            "AI Contacts": contacts_str,
-            "AI Pain Points": pain_str,
-            "AI Sources": sources_str,
-            **row,
+            **{k: row[k] for k in [
+                "AI ICP Match",
+                "AI Score",
+                "AI Brief Explanation",
+                "AI Contacts",
+                "AI Pain Points",
+                "AI Sources",
+            ] if k in row},
         }
+        for k, v in row.items():
+            if k not in ordered_row:
+                ordered_row[k] = v
+
+        row = ordered_row
 
         display_rows.append(row)
 

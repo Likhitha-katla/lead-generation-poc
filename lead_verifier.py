@@ -102,11 +102,22 @@ def _normalize_verification(data: Any) -> Dict[str, Any]:
     if not isinstance(icp_match, dict):
         icp_match = {}
 
+    raw_reasons = icp_match.get("reasons")
+    if raw_reasons is None:
+        raw_reasons = icp_match.get("reason")
+    if raw_reasons is None:
+        raw_reasons = icp_match.get("brief_explanation")
+
+    raw_source_urls = icp_match.get("source_urls")
+    if not raw_source_urls:
+        raw_source_urls = data.get("source_urls", [])
+
     normalized_icp = {
         "matched": bool(icp_match.get("matched", False)),
         "score": int(icp_match.get("score", 0) or 0),
-        "reasons": _ensure_list(icp_match.get("reasons")),
-        "source_urls": _ensure_list(icp_match.get("source_urls")),
+        "reasons": _ensure_list(raw_reasons),
+        "brief_explanation": _ensure_list(icp_match.get("brief_explanation")),
+        "source_urls": _ensure_list(raw_source_urls),
     }
 
     normalized_contacts = [_normalize_contact(item) for item in _ensure_list(contacts)]
