@@ -292,43 +292,109 @@ def _render_result_page():
     summary_col_3.metric("Rejected", result.get("rejected", 0))
     summary_col_4.metric("Deleted", result.get("deleted", 0))
 
-    # Build a presentation-friendly table hiding raw AI output
+    def _join_nonempty(values: List[str], sep: str = "; ") -> str:
+        cleaned = [str(v).strip() for v in values if str(v).strip()]
+        return sep.join(cleaned) if cleaned else "-"
+
+    def _format_contacts(contacts: List[Dict[str, Any]]) -> str:
+        items = []
+        for contact in contacts or []:
+            if not isinstance(contact, dict):
+                continue
+            name = str(contact.get("name", "")).strip()
+            title = str(contact.get("title", "")).strip()
+            linkedin_url = str(contact.get("linkedin_url", "")).strip()
+            reason = str(contact.get("reason", "")).strip()
+
+            parts = []
+            if name:
+                parts.append(name)
+            if title:
+                parts.append(title)
+            if linkedin_url:
+                parts.append(linkedin_url)
+            if reason:
+                parts.append(reason)
+
+            if parts:
+                items.append(" | ".join(parts))
+
+        return _join_nonempty(items)
+
+    def _stringify(value: Any) -> str:
+        if value is None:
+            return "-"
+        if isinstance(value, (str, int, float, bool)):
+            return str(value)
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except Exception:
+            return str(value)
+
+    def _flatten(prefix: str, value: Any, out: Dict[str, Any]) -> None:
+        if isinstance(value, dict):
+            if not value:
+                out[prefix] = "-"
+                return
+            for key, nested in value.items():
+                _flatten(f"{prefix} {key}".strip(), nested, out)
+            return
+        if isinstance(value, list):
+            out[prefix] = _stringify(value)
+            return
+        out[prefix] = _stringify(value)
+
     display_rows = []
     for lead in result.get("leads", [])[:50]:
         verification = lead.get("verification") or {}
         icp = verification.get("icp_match") or {}
 
-        # Friendly values
         matched = "Yes" if icp.get("matched") else "No"
         score = icp.get("score") if isinstance(icp.get("score"), (int, float)) else "-"
         reasons = icp.get("reasons") or []
-        top_reasons = ", ".join(reasons[:3]) if reasons else "-"
+        top_reasons = _join_nonempty([str(r) for r in reasons[:3]])
 
-        contacts = verification.get("contacts") or []
-        contacts_str = "; ".join(
-            f"{c.get('name','').strip()} ({c.get('title','').strip()}) - {c.get('linkedin_url','').strip()}" for c in contacts if c
-        ) or "-"
+        contacts_str = _format_contacts(verification.get("contacts") or [])
+        pain_str = _join_nonempty([str(p) for p in (verification.get("pain_points") or [])])
+        sources_str = _join_nonempty([str(u) for u in (verification.get("source_urls") or [])], sep=", ")
 
-        pain_points = verification.get("pain_points") or []
-        pain_str = "; ".join(pain_points) or "-"
+        row: Dict[str, Any] = {}
 
-        source_urls = verification.get("source_urls") or []
-        sources_str = ", ".join(source_urls) or "-"
+        # Apollo data: include the full lead payload except verification.
+        for key, value in lead.items():
+            if key == "verification":
+                continue
+            _flatten(f"Apollo {key}", value, row)
 
-        display_rows.append({
-            "Name": lead.get("name") or lead.get("company") or "-",
-            "Website": lead.get("website_url") or lead.get("validated_domain") or "-",
-            "ICP Match": matched,
-            "Score": score,
-            "Top Reasons": top_reasons,
-            "Contacts": contacts_str,
-            "Top Pain Points": pain_str,
-            "Source URLs": sources_str,
-        })
+        # AI data: include the full verification payload in a readable form.
+        _flatten("AI icp_match matched", icp.get("matched"), row)
+        _flatten("AI icp_match score", icp.get("score"), row)
+        _flatten("AI icp_match reasons", icp.get("reasons"), row)
+        _flatten("AI icp_match source_urls", icp.get("source_urls"), row)
+        _flatten("AI contacts", verification.get("contacts") or [], row)
+        _flatten("AI pain_points", verification.get("pain_points") or [], row)
+        _flatten("AI source_urls", verification.get("source_urls") or [], row)
+        _flatten("AI raw", verification.get("raw"), row)
+
+        # Convenience fields at the front of the table.
+        row = {
+            "Apollo Name": lead.get("name") or lead.get("company") or "-",
+            "Apollo Website": lead.get("website_url") or lead.get("validated_domain") or "-",
+            "Apollo LinkedIn": lead.get("linkedin_url") or "-",
+            "AI ICP Match": matched,
+            "AI Score": score,
+            "AI Reasons": top_reasons,
+            "AI Contacts": contacts_str,
+            "AI Pain Points": pain_str,
+            "AI Sources": sources_str,
+            **row,
+        }
+
+        display_rows.append(row)
 
     df = pd.DataFrame(display_rows)
 
-    st.subheader("Lead List (human-friendly)")
+    st.subheader("Lead List (Apollo + AI)")
     st.dataframe(df, use_container_width=True)
 
     # Save human-friendly JSON to workspace and provide download
