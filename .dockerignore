@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.venv
+venv
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.gemini_cache.json
+verified_leads_output.json
+verified_leads_human.json
+*.pyc
+*.pyo
+*.pyd
+*.log
