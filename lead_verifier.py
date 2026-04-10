@@ -9,7 +9,12 @@ from prompts.leads_prompts.verify_lead_prompt import build_verify_lead_prompt
 logger = logging.getLogger(__name__)
 
 
-def verify_leads(leads: List[Dict[str, Any]], max_leads: int = 20, timeout_per_call: int = 30) -> List[Dict[str, Any]]:
+def verify_leads(
+    leads: List[Dict[str, Any]],
+    max_leads: int = 20,
+    timeout_per_call: int = 30,
+    gemini_api_key: str = "",
+) -> List[Dict[str, Any]]:
     """Verify top leads using Gemini (Google Search tool). Returns leads enriched with a `verification` field.
 
     - Only processes up to `max_leads` to limit cost/time.
@@ -35,7 +40,14 @@ def verify_leads(leads: List[Dict[str, Any]], max_leads: int = 20, timeout_per_c
             # When using Google Search tool, Gemini may not support a JSON
             # response mime type together with tools. Request plain text and
             # extract JSON from the model output instead.
-            raw = asyncio.run(generate_with_retry(prompt=prompt, expect_json=False, use_google_search=True))
+            raw = asyncio.run(
+                generate_with_retry(
+                    prompt=prompt,
+                    expect_json=False,
+                    use_google_search=True,
+                    api_key=gemini_api_key or None,
+                )
+            )
 
             # If the client returns a JSON string, try parsing
             try:

@@ -129,7 +129,8 @@ class ICPToApolloService:
         company_size: str,
         annual_revenue: str,
         geography: str,  
-        essential_tools: List[str]
+        essential_tools: List[str],
+        gemini_api_key: str = "",
     ) -> Dict[str, Any]:
 
         if not segment_brief_description:
@@ -159,7 +160,8 @@ class ICPToApolloService:
         try:
             ai_response = await generate_with_retry(
                 prompt=prompt,
-                expect_json=True
+                expect_json=True,
+                api_key=gemini_api_key or None,
             )
         except Exception as e:
             logger.exception("Gemini API failure")

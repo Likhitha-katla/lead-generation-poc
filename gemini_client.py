@@ -95,25 +95,30 @@ _gemini_client = None
 _client_lock = threading.Lock()
 
 
-def get_gemini_client():
+def get_gemini_client(api_key: Optional[str] = None):
     """Get or create the Gemini client instance"""
     global _gemini_client
-    
-    if _gemini_client is not None:
+
+    resolved_api_key = (api_key or _get_gemini_api_key()).strip()
+
+    if _gemini_client is not None and api_key is None:
         return _gemini_client
 
     with _client_lock:
         # Double-check after acquiring lock
-        if _gemini_client is None:
+        if _gemini_client is None or api_key is not None:
             if not HAS_GOOGLE:
                 raise ConfigurationError(
                     "google.genai SDK is not installed. Add google-genai to requirements and install dependencies."
                 )
-            gemini_api_key = _get_gemini_api_key()
-            if not gemini_api_key:
+            if not resolved_api_key:
                 raise ConfigurationError("GEMINI_API_KEY is not configured")
-            _gemini_client = genai.Client(api_key=gemini_api_key)
+            client = genai.Client(api_key=resolved_api_key)
+            if api_key is None:
+                _gemini_client = client
             logger.info("Gemini client initialized")
+
+            return client
 
     return _gemini_client
 
@@ -197,9 +202,10 @@ async def generate_with_retry(
     expect_json: bool = False,
     use_google_search: bool = False,
     system_instruction: Optional[str] = None,
+    api_key: Optional[str] = None,
 ) -> str:
 
-    client = get_gemini_client()
+    client = get_gemini_client(api_key=api_key)
     
     config_kwargs = {}
     

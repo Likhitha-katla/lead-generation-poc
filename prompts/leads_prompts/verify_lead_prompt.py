@@ -14,19 +14,19 @@ def _load_hexa() -> str:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Build a minimal ICP summary to keep prompts small and cost-effective
-        minimal = {}
-        sel = data.get("selected_icp") or {}
-        company = sel.get("company_profile") or {}
-
-        minimal["persona_brief"] = sel.get("persona_brief")
-        minimal["company_profile"] = {
-            "company_type": company.get("company_type"),
-            "company_size": company.get("company_size"),
-            "annual_revenue": company.get("annual_revenue")
+        # Include the full business profile and buyer persona for richer comparison.
+        selected_icp = data.get("selected_icp") or {}
+        full_profile = {
+            "business_profile": data.get("profile") or {},
+            "selected_icp": {
+                "segment_brief": selected_icp.get("segment_brief"),
+                "persona_brief": selected_icp.get("persona_brief"),
+                # "buyer_persona": selected_icp.get("buyer_persona") or {},
+                "company_profile": selected_icp.get("company_profile") or {},
+            },
         }
 
-        return json.dumps(minimal, indent=2)
+        return json.dumps(full_profile, indent=2)
     except Exception:
         return "{}"
 
@@ -34,7 +34,7 @@ def _load_hexa() -> str:
 def build_verify_lead_prompt(lead: Dict[str, Any]) -> str:
     """Build a prompt instructing the model to search the web (Google)
     for the lead's website and LinkedIn, then compare the findings to our
-    ICP (embedded) and return a compact JSON verdict.
+    full profile and buyer persona and return a compact JSON verdict.
 
     Expected output JSON:
     {
@@ -58,7 +58,7 @@ def build_verify_lead_prompt(lead: Dict[str, Any]) -> str:
     prompt = f"""
 You are an assistant that can search the web via Google Search tool.
 
-Context — Our ICP (Hexa reference):
+Context - Our full profile and buyer persona (Hexa reference):
 {hexa}
 
 Lead to verify (minimal):
@@ -71,10 +71,11 @@ Revenue: {revenue}
 
 Task:
 1) Use Google Search and visit the company's website and LinkedIn (if available).
-2) Determine whether this organization matches the ICP above focusing on:
+2) Determine whether this organization matches our full profile and buyer persona above, focusing on:
    - industry fit
    - company size and employee count
    - revenue band
+   - match to the buyer persona's responsibilities, pain points, and decision-making context
    - presence of essential tools and tech signals
 3) Return ONLY valid JSON with keys: "qualified" (boolean), "score" (0-100 int),
    "reasons" (array of short strings), and "source_urls" (array of urls you used).
@@ -84,11 +85,7 @@ Notes:
 - If uncertain, set "qualified" to false and explain why.
 - Do NOT include any extra commentary outside the JSON.
 
-
-        
 Required JSON structure (respond exactly in this format):
-
-Required JSON structure:
 {{
     "qualified": true,
     "score": 85,
@@ -98,5 +95,5 @@ Required JSON structure:
 
 Return only the JSON object above. Do not add surrounding text or explanation.
 """
-    
-    return prompt 
+
+    return prompt

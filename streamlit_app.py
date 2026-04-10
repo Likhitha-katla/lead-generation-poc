@@ -7,20 +7,12 @@ from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
 
-try:
-    from dotenv import load_dotenv
-except Exception:
-    load_dotenv = None
-
 from icp_to_apollo_service import ICPToApolloService
 from organization_fetch import ApolloOrganisationLeadService
 from lead_verifier import verify_leads
 
 
 st.set_page_config(page_title="ICP to Apollo Leads", layout="wide")
-
-if load_dotenv is not None:
-    load_dotenv()
 
 
 def _load_hexa_defaults() -> Dict[str, str]:
@@ -62,6 +54,7 @@ def _load_hexa_defaults() -> Dict[str, str]:
 
 HEX_DEFAULTS = _load_hexa_defaults()
 DEFAULT_APOLLO_KEY = os.getenv("APOLLO_API_KEY", "").strip()
+DEFAULT_GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 
 def _init_state():
@@ -69,6 +62,7 @@ def _init_state():
         "stage": "input",
         "generated_filters": None,
         "apollo_key": DEFAULT_APOLLO_KEY,
+        "gemini_key": DEFAULT_GEMINI_KEY,
         "lead_result": None,
         "edit_mode": False,
     }
@@ -114,6 +108,15 @@ def _render_input_page():
         height=100,
     )
 
+    gemini_key = st.text_input(
+        "Gemini API Key",
+        type="password",
+        value=st.session_state.get("gemini_key", DEFAULT_GEMINI_KEY),
+        help="Used for Apollo filter generation.",
+        key="gemini_key_input_screen1",
+    )
+    st.session_state["gemini_key"] = gemini_key.strip()
+
     # If filters already exist (user returned from review), allow quick navigation
     if st.session_state.get("generated_filters"):
         if st.button("Next: Review Filters"):
@@ -121,6 +124,11 @@ def _render_input_page():
             st.rerun()
 
     if st.button("Generate Apollo Filters"):
+        gemini_key = st.session_state.get("gemini_key", "").strip()
+        if not gemini_key:
+            st.error("Gemini API key is required on this screen.")
+            return
+
         tools = _parse_list(essential_tools)
 
         service = ICPToApolloService()
@@ -133,6 +141,7 @@ def _render_input_page():
                     annual_revenue=annual_revenue,
                     geography=geography,
                     essential_tools=tools,
+                    gemini_api_key=gemini_key,
                 )
             )
 
@@ -156,13 +165,25 @@ def _render_review_page():
             st.session_state["edit_mode"] = not st.session_state["edit_mode"]
             st.rerun()
 
-    review_key = st.text_input(
-        "Apollo API Key",
-        type="password",
-        value=st.session_state.get("apollo_key", DEFAULT_APOLLO_KEY),
-        help="This key is only needed when you fetch leads from Apollo.",
-    )
-    st.session_state["apollo_key"] = review_key
+    col_key_1, col_key_2 = st.columns(2)
+    with col_key_1:
+        gemini_key = st.text_input(
+            "Gemini API Key",
+            type="password",
+            value=st.session_state.get("gemini_key", DEFAULT_GEMINI_KEY),
+            help="Used for lead verification.",
+            key="gemini_key_input_review",
+        )
+        st.session_state["gemini_key"] = gemini_key.strip()
+    with col_key_2:
+        apollo_key = st.text_input(
+            "Apollo API Key",
+            type="password",
+            value=st.session_state.get("apollo_key", DEFAULT_APOLLO_KEY),
+            help="Used when fetching leads from Apollo.",
+            key="apollo_key_input_review",
+        )
+        st.session_state["apollo_key"] = apollo_key.strip()
 
     if not st.session_state["edit_mode"]:
         col_1, col_2 = st.columns(2)
@@ -225,7 +246,7 @@ def _render_review_page():
     if st.button("Fetch Leads"):
         apollo_key = st.session_state.get("apollo_key", "").strip()
         if not apollo_key:
-            st.error("Apollo API key is required on this screen, or set APOLLO_API_KEY in .env.")
+            st.error("Apollo API key is required on this screen.")
             return
 
         payload = dict(filters)
@@ -247,15 +268,19 @@ def _render_result_page():
     st.title("Qualified Leads")
 
     result = st.session_state["lead_result"]
+    gemini_key = st.session_state.get("gemini_key", "").strip()
 
     # Run verification for top leads (Gemini + Google Search) to provide final verdicts
     try:
         leads = result.get("leads", [])
         if leads:
-            with st.spinner("Verifying leads against ICP (web search)..."):
-                verified = verify_leads(leads, max_leads=20)
-                result["leads"] = verified
-                st.session_state["lead_result"] = result
+            if not gemini_key:
+                st.warning("Gemini API key is missing, so lead verification was skipped.")
+            else:
+                with st.spinner("Verifying leads against ICP (web search)..."):
+                    verified = verify_leads(leads, max_leads=20, gemini_api_key=gemini_key)
+                    result["leads"] = verified
+                    st.session_state["lead_result"] = result
     except Exception:
         # If verification fails, continue to display the raw results
         pass
