@@ -235,26 +235,56 @@ IMPORTANT:
 ==================================================
 3) PAIN POINTS (MOST IMPORTANT)
 ==================================================
-This section must reflect REAL COMPANY BUSINESS PAIN.
+You are a B2B Sales Intelligence Researcher.
+Your goal is to find REAL, SPECIFIC insights about the company and the lead.
 
-This should be useful directly for cold email personalization.
+CRITICAL INSTRUCTIONS:
+1. Use Google Search to find at least 3-5 sources about the company.
+2. Search for:
+   - Company website pages like About, Services, Case Studies, Blog
+   - Recent news articles or press releases
+   - LinkedIn company page updates
+   - Industry reports mentioning the company
+   - Customer reviews or testimonials
+   - Job postings that reveal internal challenges
+   - Competitor comparisons
 
-Do NOT give generic pain points.
+EVIDENCE-BASED PAIN POINTS ONLY:
+- Quote specific facts you found.
+- Reference actual initiatives, job postings, or public statements.
+- Use real challenges supported by evidence.
+- Do NOT make assumptions without evidence.
 
-Each pain point must explain in one line:
-- the problem
-- business impact
-- why it matters
-- how our solution connects
+YOUR RESEARCH PROCESS:
+STEP 1: Deep Research using Google Search
+- "{name} services"
+- "{name} news"
+- "{name} challenges"
+- "{name} hiring"
+- "{name} jobs"
+- "{name} LinkedIn"
 
-Return TOP 3.
+STEP 2: Extract specific insights
+- What they are currently working on
+- What they are hiring for
+- What customers or employees say about them
+- Industry trends affecting them
+
+STEP 3: Connect insights to pain points
+- Match what you found to our value proposition
+- Use their own language or terminology
+- Reference specific timelines or events
+- Give pain points in simple English, one line only
+- Tell the pain point as a pain point, not in a generic manner
+
+Return TOP 3 pain points only.
 
 Examples:
-- "Manual lead qualification slows outbound velocity and reduces sales productivity"
-- "Fragmented workflows increase operational cost and delay strategic decisions"
-- "Lack of AI-driven insights reduces conversion and personalization efficiency"
+- "Manual lead qualification is slowing sales velocity and wasting team time"
+- "Fragmented workflows are driving higher operating cost and slower decisions"
+- "Weak digital adoption is limiting productivity and customer response speed"
 
-Pain points must sound like REAL executive business pain.
+Pain points must sound like real, harsh business pain and must be directly usable in a cold email.
 
 ==================================================
 4) SOURCE URLS
